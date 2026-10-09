@@ -18,10 +18,13 @@ providers behind a shared API. The default configuration has no model routes.
 ## Set up on a new machine
 
 Requires Git, Docker Engine with Compose v2 or later, and Python 3. Use Linux
-containers; the pinned LiteLLM 1.104.0 image supports AMD64 and ARM64. Run commands
-from the repository root. Credentials and data volumes are local to each machine.
+containers; the pinned LiteLLM 1.104.0 image supports AMD64 and ARM64. Clone the
+repository and run setup from its root. Credentials and data volumes are local
+to each machine.
 
 ```bash
+git clone https://github.com/G-aUr-aV/LiteLLM.git
+cd LiteLLM
 python3 scripts/init-env.py
 docker compose -f docker-compose.quickstart.yml config --quiet
 docker compose -f docker-compose.quickstart.yml up -d
@@ -95,8 +98,8 @@ PY_LOGIN
 
 Open the printed verification URL and complete authorization yourself. The
 temporary container shares the gateway's writable `chatgpt_tokens` volume; token
-refresh requires that volume to remain writable. No login script or token file
-belongs in the repository.
+refresh requires that volume to remain writable. Credentials stay in that local
+volume and are not part of the checkout.
 
 Add this entry to `model_list`, replacing `<model-id>` with a model your account
 can access:
@@ -155,10 +158,16 @@ reusing database data: changing the salt makes stored provider credentials
 unreadable. Keep the Compose project name stable to reuse the same volumes.
 `LITELLM_IMAGE` can override the pinned image for a deliberate upgrade.
 
-For an intentional full reset, `docker compose -f docker-compose.quickstart.yml
-down --volumes` permanently deletes both volumes. Remove `.env` only when also
-discarding that database. A new machine gets fresh state without deleting anything
-on the original machine. `.gitignore` excludes local credentials and runtime files.
+For an intentional full reset, the following command permanently deletes both
+volumes:
+
+```bash
+docker compose -f docker-compose.quickstart.yml down --volumes
+```
+
+Remove `.env` only when also discarding that database. A new machine gets fresh
+state without deleting anything on the original machine. `.gitignore` excludes
+local credentials and runtime files.
 
 ## Agent-assisted setup
 
