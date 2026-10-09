@@ -1,0 +1,239 @@
+{
+  "info": {
+    "name": "LiteLLM",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Local LiteLLM gateway. Set litellm_base_url, litellm_model, and litellm_stream in collection variables. Use a configured model ID. Authorization uses the local Postman Vault secret litellm-api-key. See README.md for setup and provider configuration."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{vault:litellm-api-key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "litellm_base_url",
+      "value": "http://localhost:4000",
+      "type": "string",
+      "description": "Gateway origin, without trailing slash or /v1"
+    },
+    {
+      "key": "litellm_model",
+      "value": "example-model",
+      "type": "string",
+      "description": "Exact configured model ID; change this collection variable to select a model."
+    },
+    {
+      "key": "litellm_stream",
+      "value": "false",
+      "type": "string",
+      "description": "JSON boolean text; ChatGPT requires true"
+    },
+    {
+      "key": "litellm_available_models",
+      "value": "",
+      "type": "string",
+      "description": "Script-managed cached model IDs"
+    },
+    {
+      "key": "litellm_catalog_fetched_at",
+      "value": "",
+      "type": "string",
+      "description": "Script-managed UTC catalog fetch time"
+    }
+  ],
+  "item": [
+    {
+      "name": "List Models",
+      "request": {
+        "method": "GET",
+        "url": "{{litellm_base_url}}/v1/models",
+        "description": "List configured gateway models, cache their IDs, and display a searchable Visualization. Configured routes do not prove account entitlement, quota, or provider health.",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const payload = pm.response.json();",
+              "  const valid = Array.isArray(payload.data) && payload.data.length > 0 &&",
+              "    payload.data.every(model => typeof model.id === \"string\" && model.id.length > 0);",
+              "  pm.test(\"Non-empty model catalog\", () => pm.expect(valid).to.equal(true));",
+              "  if (valid) {",
+              "    const ids = [...new Set(payload.data.map(model => model.id))].sort();",
+              "    const fetchedAt = new Date().toISOString();",
+              "    pm.collectionVariables.set(\"litellm_available_models\", JSON.stringify(ids));",
+              "    pm.collectionVariables.set(\"litellm_catalog_fetched_at\", fetchedAt);",
+              "    const layout = `",
+              "      <style>",
+              "        :root { --ink: #183d34; --paper: #f4f1e7; --line: #ccd5c8; }",
+              "        body { margin: 0; padding: 24px; color: var(--ink); background: linear-gradient(135deg, var(--paper), #e2eee4); font-family: Georgia, serif; }",
+              "        h1 { margin: 0 0 8px; font-size: 32px; }",
+              "        p { line-height: 1.5; }",
+              "        input { width: 100%; box-sizing: border-box; padding: 12px; margin: 12px 0; border: 1px solid var(--line); background: #fffdf5; font: 16px Georgia, serif; }",
+              "        table { width: 100%; border-collapse: collapse; background: #fffdf5; }",
+              "        td, th { text-align: left; padding: 12px; border-bottom: 1px solid var(--line); word-break: break-word; }",
+              "        code { font-family: 'Courier New', monospace; }",
+              "      </style>",
+              "      <h1>Gateway model catalog</h1>",
+              "      <p>{{count}} advertised models. Refreshed {{fetchedAt}}.</p>",
+              "      <p>Copy an exact model ID into your preset's <code>litellm_model</code> variable. ChatGPT presets require <code>litellm_stream=true</code>.</p>",
+              "      <label for=\"filter\">Filter by model or provider</label>",
+              "      <input id=\"filter\" placeholder=\"For example: chatgpt/ or deepseek\" />",
+              "      <table><thead><tr><th>Model ID</th></tr></thead><tbody>",
+              "        {{#each models}}<tr><td><code>{{this}}</code></td></tr>{{/each}}",
+              "      </tbody></table>",
+              "      <script>",
+              "        document.getElementById('filter').addEventListener('input', function () {",
+              "          const query = this.value.toLowerCase();",
+              "          document.querySelectorAll('tbody tr').forEach(function (row) {",
+              "            row.hidden = !row.textContent.toLowerCase().includes(query);",
+              "          });",
+              "        });",
+              "      </script>`;",
+              "    pm.visualizer.set(layout, {models: ids, count: ids.length, fetchedAt});",
+              "  }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Completion - Gateway Test",
+      "request": {
+        "method": "POST",
+        "url": "{{litellm_base_url}}/v1/chat/completions",
+        "description": "Set litellm_model to a configured route and litellm_stream to its supported response mode, then edit messages. Use streaming for the ChatGPT example. Authorization uses the local Vault secret.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"{{litellm_model}}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with: Gateway is working.\"\n    }\n  ],\n  \"stream\": {{litellm_stream}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+              "if (typeof body.model !== \"string\" || !body.model.trim() || body.model.includes(\"{{\")) {",
+              "  throw new Error(\"Set litellm_model to an ID from List Models.\");",
+              "}",
+              "if (typeof body.stream !== \"boolean\") {",
+              "  throw new Error(\"Set litellm_stream to true or false, without quotes in the JSON body.\");",
+              "}",
+              "const chatgpt = body.model.startsWith(\"chatgpt/\");",
+              "if (chatgpt && !body.stream) {",
+              "  throw new Error(\"This ChatGPT route requires streaming. Set litellm_stream to true.\");",
+              "}",
+              "if (!Array.isArray(body.messages) || !body.messages.length) {",
+              "  throw new Error(\"Provide at least one message in the messages array.\");",
+              "}",
+              "const roles = [\"system\", \"developer\", \"user\", \"assistant\", \"tool\", \"function\"];",
+              "if (body.messages.some(message => !message || !roles.includes(message.role))) {",
+              "  throw new Error(\"Each message must have a supported role.\");",
+              "}",
+              "if (body.messages.some(message => message.content === undefined && !message.tool_calls && !message.function_call)) {",
+              "  throw new Error(\"Each message needs content or an assistant tool/function call.\");",
+              "}",
+              "const cached = pm.collectionVariables.get(\"litellm_available_models\");",
+              "if (cached) {",
+              "  try {",
+              "    const ids = JSON.parse(cached);",
+              "    if (Array.isArray(ids) && !ids.includes(body.model)) {",
+              "      console.warn(\"Model is absent from the cached catalog. Refresh List Models to verify availability.\");",
+              "    }",
+              "  } catch (_) {",
+              "    console.warn(\"Cached catalog is invalid. Refresh List Models.\");",
+              "  }",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const contentType = pm.response.headers.get(\"Content-Type\") || \"\";",
+              "  const request = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+              "  if (request.stream) {",
+              "    pm.test(\"SSE content type\", () => pm.expect(contentType).to.include(\"text/event-stream\"));",
+              "    const data = pm.response.text().split(/\\r?\\n\\r?\\n/)",
+              "      .map(event => event.split(/\\r?\\n/).filter(line => line.startsWith(\"data:\"))",
+              "        .map(line => line.slice(5).trimStart()).join(\"\\n\"))",
+              "      .filter(Boolean);",
+              "    const frames = [];",
+              "    let parseError = false;",
+              "    data.filter(value => value !== \"[DONE]\").forEach(value => {",
+              "      try { frames.push(JSON.parse(value)); } catch (_) { parseError = true; }",
+              "    });",
+              "    pm.test(\"Valid SSE event JSON\", () => pm.expect(parseError).to.equal(false));",
+              "    pm.test(\"Stream completed\", () => pm.expect(data).to.include(\"[DONE]\"));",
+              "    pm.test(\"No error events\", () => pm.expect(frames.some(frame => frame.error)).to.equal(false));",
+              "    pm.test(\"Assistant text received\", () => pm.expect(frames.some(frame =>",
+              "      (frame.choices || []).some(choice => typeof choice.delta?.content === \"string\" && choice.delta.content.length > 0)",
+              "    )).to.equal(true));",
+              "  } else {",
+              "    pm.test(\"JSON content type\", () => pm.expect(contentType).to.include(\"application/json\"));",
+              "    pm.test(\"Assistant message received\", () => {",
+              "      const body = pm.response.json();",
+              "      pm.expect(body.error).to.equal(undefined);",
+              "      pm.expect(body.choices).to.be.an(\"array\").that.is.not.empty;",
+              "      pm.expect(body.choices[0].message.role).to.equal(\"assistant\");",
+              "      pm.expect(body.choices[0].message.content).to.be.a(\"string\").that.is.not.empty;",
+              "    });",
+              "  }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gateway Readiness",
+      "request": {
+        "method": "GET",
+        "url": "{{litellm_base_url}}/health/readiness",
+        "description": "Check gateway readiness independently of a completion. Readiness does not establish any specific model or provider is available. Uses collection Bearer authorization.",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test(\"Gateway healthy\", () => pm.expect(pm.response.json().status).to.equal(\"healthy\"));",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

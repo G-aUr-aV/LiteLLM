@@ -1,0 +1,13 @@
+# Local credentials and runtime files
+.env
+.env.*
+!.env.example
+auth.json
+__pycache__/
+*.py[cod]
+*.log
+
+# Managed local agent directories
+.agents/
+.aws/
+.codex/
