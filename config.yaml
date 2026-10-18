@@ -3,6 +3,8 @@
 model_list: []
 
 general_settings:
+  alerting: ["slack"]
+  alerting_threshold: 2
   master_key: os.environ/LITELLM_MASTER_KEY
   # Bootstrap a fresh database, then set true after verifying a database admin.
   disable_env_credential_login: false
